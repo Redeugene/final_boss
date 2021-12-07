@@ -1,0 +1,72 @@
+<head>
+<meta charset="UTF-8">
+<title>User Information Form</title>
+</head>
+<body>
+<form action="" method="POST">
+{% csrf_token %}
+{{ form.as_p }}
+<input type="Submit" name="submit" value="Submit"/>
+</form>
+<h1>Сводка курса акций</h1>
+<table>
+     <tr>
+         <th>Name</th>
+         <th>stock_price</th>
+     </tr>
+ <tr>
+     {% for mt in stock_results %}
+     <td>{{mt.name}}</td>
+     <td>{{mt.stock_price}}</td>
+ </tr>
+     {% endfor %}
+</table>
+
+{% if submitbutton == "Submit" %}
+<h1>Фундаментальные показатели {{ text }}</h1>
+ {% if query_results %}
+ <h3>{{form}}</h3>
+ <table>
+     <tr>
+         <th>id</th>
+         <th>price_profit</th>
+         <th>price_sales</th>
+         <th>price_cashflow</th>
+         <th>price_book_value</th>
+         <th>price_ebidta</th>
+         <th>ROE</th>
+         <th>COC</th>
+         <th>DoCash</th>
+         <th>DoCap</th>
+         <th>Price_stock</th>
+         <th>Name</th>
+         <th>Pot_fut_price</th>
+     </tr>
+ <tr>
+     {% for st in query_results %}
+     <td>{{st.id}}</td>
+     <td>{{st.a_4}}</td>
+     <td>{{st.a_5}}</td>
+     <td>{{st.a_6}}</td>
+     <td>{{st.a_7}}</td>
+     <td>{{st.a_9}}</td>
+     <td>{{st.a_11}}</td>
+     <td>{{st.a_21}}</td>
+     <td>{{st.a_22}}</td>
+     <td>{{st.a_23}}</td>
+     <td>{{st.a_24}}</td>
+     <td>{{st.a_25}}</td>
+     <td>{{st.a_26}}</td>
+ </tr>
+     <h1>Potential future price is {{st.a_26}} </h1>
+     {% endfor %}
+</table>
+{% else %}
+ <h1>No Data</h1>
+{% endif %}
+{% endif %}
+<h4>By Zinoviev Eugene (Nefis Cosmetics), </h4>
+<h4>Kozlov Denis (AK Bars Bank), </h4>
+<h4>Gilmanov Arslan (San Andreas), </h4>
+<h1>Glugov Andriy (Mentually with us) </h1>
+</body>
