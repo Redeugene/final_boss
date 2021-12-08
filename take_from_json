@@ -1,0 +1,241 @@
+companies = ['gazp', 'sber', 'vtbr','gmkn','poly','yndx','lkoh','alrs','nlmk','rosn','chmf','magn','afks','rual','tatn','mgnt','mtss','irao','plzl','moex','phor','pikk','mtlr','mvid','sibn','hydr','rasp','belu','upro','rsti']
+not_stock_prices_companies = ['five', 'mail', 'tcsg', 'pogr', 'agro', 'banep', 'qiwi', 'sngsp', 'sberp','tatnp']
+
+params = ['Всего выпущено обыкновенных акций',
+       'Количество акций доступных к купле-продаже', 'Количество сотрудников',
+       'Количество акционеров', 'Цена/Прибыль', 'Цена/Продажи',
+       'Цена/Движение денежных средств', 'Цена/балансовая стоимость',
+       'Стоимость компании', 'Стоимость компании/EBITDA',
+       'Прибыль на общ. сумму активов, %', 'Доход на капитал, %',
+       'Доход на инвестированный капитал, %', 'Валовая рентабельность %',
+       'Операционная рентабельность %', 'Рентабельность по EBITDA %',
+       'Чистая рентабельность %', 'Быстрая ликвидность',
+       'Коэффициент текущей ликвидности', 'Оборачиваемость запасов',
+       'Оборачиваемость активов', 'Задолженность/Активы',
+       'Задолженность/Капитал', 'Долгосрочная задолж./совокупные активы', 'Mean_stock_price_with_inflation']
+import pandas as pd
+delta_frame = pd.DataFrame(columns = params)
+def get_from_json_fund_params(name_company):
+    import pandas as pd
+    import os
+    directory = r'C:\Users\pc\Downloads\json_date'
+    files = os.listdir(directory)
+    y_html_files = list(filter(lambda x: x.endswith('y.html'), files))
+    #print(y_html_files)
+    file_path = fr'C:\Users\pc\Downloads\json_date\{name_company.upper()}_y.html'
+    if file_path[32:] not in y_html_files:
+        return
+    pd.set_option('display.max_columns', None)
+    pd.set_option('display.max_colwidth', None)
+    pd.set_option('display.max_rows', None)
+    from bs4 import BeautifulSoup
+    with open(file_path, 'r', encoding='utf8') as f:
+        soup = BeautifulSoup(f, 'lxml')
+        items_date_1 = soup.find_all("div", class_="wrap-25PNPwRV")
+        items_titles_1 = soup.find_all("span", class_="title-jKD0Exn- apply-overflow-tooltip")
+    items_date_1_1 = []
+    for item in items_date_1:
+        items = item.get_text()
+        items_date_1_1.append(items)
+    #print(items_date_1_1)
+    items_titles_1_1 = []
+    for item in items_titles_1:
+        items = item.get_text()
+        items_titles_1_1.append(items)
+    #print(len(items_titles_1_1))
+    item_date = [[] for i in range(len(items_titles_1) + 1)]
+    ind, num_list = 1, 0
+    for i in items_date_1_1:
+        item_date[num_list].append(i)
+        ind += 1
+        if ind % 9 == 0:
+            num_list += 1
+            ind = 1
+    #print(item_date)
+    data = pd.DataFrame(item_date[1:], columns=item_date[0], index=items_titles_1_1)
+    #print(data)
+    q_html_files = list(filter(lambda x: x.endswith('q.html'), files))
+    file_path = fr'C:\Users\pc\Downloads\json_date\{name_company.upper()}_q.html'
+    if file_path[32:] in q_html_files:
+        data.drop(['2020', 'Текущ. цена'], axis=1, inplace=True)
+    data = data.T
+    for i in data.columns:
+        for j in range(len(data[i])):
+            if data[i][j] is not None and len(data[i][j]) > 1:
+                if data[i][j][-2] == "K" or data[i][j][-2] == "B" or data[i][j][-2] == "M":
+                    if data[i][j][1] == '−':
+                        data[i][j] = float('-' + data[i][j][2:-2])
+                    else:
+                        data[i][j] = float(data[i][j][1:-2])
+                    #print(type(data[i][j]))
+                elif data[i][j][1] == '−':
+                    data[i][j] = float('-'+data[i][j][2:-1])
+                else:
+                    data[i][j] = float(data[i][j][1:-1])
+                #print(data[i][j])
+            elif data[i][j] == '—':
+                data[i][j] = None
+            #print(data[i][j], len(data[i][j]), data[i][j][1:-1])
+    q_html_files = list(filter(lambda x: x.endswith('q.html'), files))
+    file_path = fr'C:\Users\pc\Downloads\json_date\{name_company.upper()}_q.html'
+    if file_path[32:] not in q_html_files:
+        import investpy
+        data_stock = investpy.get_stock_historical_data(stock=name_company, country='russia', from_date='01/01/2013',
+                                                        to_date='05/11/2021')
+        data_stock_y = data_stock[:'20220101']
+        d_years = data_stock_y.resample('Y')['Close'].mean()
+        df = d_years
+        # print(df)
+        import calendar
+        voc_mean_stock_price = {}
+        for ind, i in enumerate(df.index):
+            if str(i.year) in data.index and ind != len(df.index) - 1:
+                # print (i)
+                voc_mean_stock_price[str(i.year)] = df[ind]
+            else:
+                voc_mean_stock_price[data.index[-1]] = df[
+                    pd.Timestamp(i.year, i.quarter * 3, calendar.monthrange(i.year, i.quarter * 3)[1])]
+        #print (voc_mean_stock_price)
+        #print(data)
+        ser_mean_stock_price = pd.Series(voc_mean_stock_price, name='Mean_stock_price')
+        data_full_with_stock_price = data.T.append(ser_mean_stock_price, ignore_index=False)
+        #print (data_full_with_stock_price)
+        import numpy as np
+        inflation = np.array([11.36, 12.91, 5.38, 2.52, 4.27, 3.05, 4.91, 5.32])[::-1]
+        inflation = np.cumsum(inflation)[::-1]
+        # print(data_full_with_stock_price.loc['Mean_stock_price'])
+        stock_price_with_inflation = data_full_with_stock_price.loc['Mean_stock_price'] * (1 + inflation / 100)
+        stock_price_with_inflation.name = 'Mean_stock_price_with_inflation'
+        data_full_with_stock_price_with_inflation = data_full_with_stock_price.append(stock_price_with_inflation)
+
+    else:
+        with open(file_path, 'r', encoding='utf8') as f:
+            soup = BeautifulSoup(f, 'lxml')
+            items_date_1 = soup.find_all("div", class_="wrap-25PNPwRV")
+            items_titles_1 = soup.find_all("span", class_="title-jKD0Exn- apply-overflow-tooltip")
+
+        items_date_q = []
+        for item in items_date_1:
+            items = item.get_text()
+            items_date_q.append(items)
+        # print(items_date_q)
+
+        items_titles_q = []
+        for item in items_titles_1:
+            items = item.get_text()
+            items_titles_q.append(items)
+        #print(len(items_titles_q))
+
+        item_date = [[] for i in range(24)]
+        ind, num_list = 1, 0
+        for i in items_date_q:
+            item_date[num_list].append(i)
+            ind += 1
+            if ind % 9 == 0:
+                num_list += 1
+                ind = 1
+        import pandas as pd
+        #print(len(item_date))
+        none_3_cols = [[None for i in range(len(item_date[0]))] for j in range(3)]
+        #print(none_3_cols)
+        data_q_rows = [[0 for i in range(len(item_date[0]))] for j in range(24)]
+        data_q_rows[0] = item_date[1]
+        for m in range(3):
+            data_q_rows[1+m] = none_3_cols[m]
+        for k in range(20):
+            data_q_rows[4+k] = item_date[2+k]
+            #print(item_date[21])
+        #print(len(data_q_rows))
+        data_q = pd.DataFrame(data_q_rows, columns=item_date[0], index=items_titles_1_1)
+        #print(data_q)
+        quartiles_index = data_q.columns
+        # print(quartiles_index)
+        data_q = data_q.T
+        for i in data_q.columns:
+            for j in range(len(data_q[i])):
+                if data_q[i][j] is not None and len(data_q[i][j]) > 1:
+                    if data_q[i][j][-2] == "K" or data_q[i][j][-2] == "B" or data_q[i][j][-2] == "M":
+                        if data_q[i][j][1] == '−':
+                            data_q[i][j] = float('-' + data_q[i][j][2:-2])
+                        else:
+                            data_q[i][j] = float(data_q[i][j][1:-2])
+                        # print(type(data_q[i][j]))
+                    elif data_q[i][j][1] == '−':
+                        data_q[i][j] = float('-' + data_q[i][j][2:-1])
+                    else:
+                        data_q[i][j] = float(data_q[i][j][1:-1])
+                    # print(data_q[i][j])
+                elif data_q[i][j] == '—':
+                    data_q[i][j] = None
+                # print(data_q[i][j], len(data_q[i][j]), data_q[i][j][1:-1])
+        data_full = pd.concat([data.T, data_q.T], axis=1)
+        if 'Q4 19' in data_full.columns:
+            data_full.drop('Q4 19', axis=1, inplace=True)
+        #print(data_full)
+        import investpy
+        data_stock = investpy.get_stock_historical_data(stock=name_company, country='russia', from_date='01/01/2013',
+                                                        to_date='05/11/2021')
+        data_stock_y = data_stock[:'20200101']
+        d_years = data_stock_y.resample('Y')['Close'].mean()
+        data_stock_q = data_stock['20200101':]
+        d_quarts = data_stock_q.resample('Q')['Close'].mean()
+        df = d_years.append(d_quarts)
+        # print(df)
+        import calendar
+        voc_mean_stock_price = {}
+        for ind, i in enumerate(df.index):
+            if str(i.year) in data.index:
+                # print (i)
+                voc_mean_stock_price[str(i.year)] = df[ind]
+            elif i.year > 2018 and ind != len(df.index) - 1 and (
+                    'Q' + str(i.quarter) + ' ' + str(i.year)[2:]) in quartiles_index:
+                # print('Q' + str(i.quarter) + ' ' + str(i.year)[2:], ('Q' + str(i.quarter) + ' ' + str(i.year)[2:]) in quartiles_index)
+                voc_mean_stock_price['Q' + str(i.quarter) + ' ' + str(i.year)[2:]] = df[
+                    pd.Timestamp(i.year, i.quarter * 3, calendar.monthrange(i.year, i.quarter * 3)[1])]
+            else:
+                voc_mean_stock_price[data_full.columns[-1]] = df[
+                    pd.Timestamp(i.year, i.quarter * 3, calendar.monthrange(i.year, i.quarter * 3)[1])]
+        # print (voc_mean_stock_price)
+
+        ser_mean_stock_price = pd.Series(voc_mean_stock_price, name='Mean_stock_price')
+        #print(ser_mean_stock_price)
+        data_full_with_stock_price = data_full.append(ser_mean_stock_price, ignore_index=False)
+        #print (data_full_with_stock_price)
+        import numpy as np
+        if len(data_full_with_stock_price.columns) == 14:
+            inflation = np.array([11.36, 12.91, 5.38, 2.52, 4.27, 3.05, 1.28, 1.32, 0.24, 1.97, 2.11, 2.01, 1.08, 2.3])[::-1]
+        else:
+            inflation = np.array([11.36, 12.91, 5.38, 2.52, 4.27, 3.05, 1.28, 1.32, 0.24, 1.97, 2.11, 2.01, 2.3])[::-1]
+        inflation = np.cumsum(inflation)[::-1]
+        # print(data_full_with_stock_price.loc['Mean_stock_price'])
+        stock_price_with_inflation = data_full_with_stock_price.loc['Mean_stock_price'] * (1 + inflation / 100)
+        stock_price_with_inflation.name = 'Mean_stock_price_with_inflation'
+        data_full_with_stock_price_with_inflation = data_full_with_stock_price.append(stock_price_with_inflation)
+    data_full_with_stock_price_with_inflation.drop('Mean_stock_price', axis = 0, inplace = True)
+    return data_full_with_stock_price_with_inflation.T
+    ##data_full_with_stock_price_with_inflation = data_full_with_stock_price_with_inflation['Текущ. цена'].T
+    ##data_full_with_stock_price_with_inflation['name'] = name_company
+    #return data_full_with_stock_price_with_inflation[[4,5,6,7,9,25]]
+    #print(data_full_with_stock_price_with_inflation.T.index)
+    #for i in range(len(data_full_with_stock_price_with_inflation.T.index) - 1):
+        #row_delta = 100 * data_full_with_stock_price_with_inflation.T.iloc[i] / data_full_with_stock_price_with_inflation.T.iloc[i+1] - 100
+        #row_delta = data_full_with_stock_price_with_inflation.T.iloc[i+1] - data_full_with_stock_price_with_inflation.T.iloc[i]
+        #delta_frame.loc[i] = row_delta
+        #print(row_delta)
+    #print(delta_frame)
+    #print(data_full_with_stock_price_with_inflation[[4,5,6,7,9,25]].values.reshape(1, 6))
+    ##pd.DataFrame(data_full_with_stock_price_with_inflation[[4,5,6,7,9,25]].values.reshape(1, 6)).to_csv(r'C:\Users\pc\Downloads\json_date\container.txt', header=None, index=None, sep=',', mode='a')
+    #data_full_with_stock_price_with_inflation.T.to_csv(r'C:\Users\pc\Downloads\json_date\container.txt', header=None, index=None, sep=',', mode='a')
+
+
+#for i in companies:
+    #if i in not_stock_prices_companies:
+        #continue
+    #get_from_json_fund_params(i)
+
+pd.set_option('display.max_columns', None)
+pd.set_option('display.max_colwidth', None)
+pd.set_option('display.max_rows', None)
+#print(len(get_from_json_fund_params('gazp')))
+#print(pd.read_csv(r'C:\Users\pc\Downloads\json_date\container.txt', header = None))
+#tickers = pd.read_csv(r'C:\Users\pc\Downloads\json_date\container.txt', header = None)
