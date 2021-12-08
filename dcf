@@ -1,0 +1,106 @@
+from investpy.utils.extra import random_user_agent
+import investpy
+import calendar
+
+
+
+import numpy as np
+from math import *
+import pandas as pd
+import statsmodels
+import statsmodels.api as sm
+from statsmodels.tsa.stattools import coint, adfuller
+
+import matplotlib.pyplot as plt
+import seaborn as sns; sns.set(style="whitegrid")
+import seaborn
+from datetime import date
+import os
+from bs4 import BeautifulSoup
+
+
+
+
+
+
+def dcf_watch_list(name_company):
+
+  ticker = name_company
+
+  curent_price = dfs4[name_company][len(dfs4)-1]
+
+  pe_ratio = df[f'df_{name_company}']['Цена/Прибыль'][len(df)-1] # странно почему длина так получилась в табличке
+
+  eps_ratio = dfs4[name_company][len(dfs4)-1] / df[f'df_{name_company}']['Цена/Прибыль'][len(df)-1]
+
+  discount_rate = 0.09 # доходность альтернативного вложения в стран
+
+  Estimated_Profit_Growth_Rate_list = []
+  for k, i in enumerate(range(len(df))):
+    Estimated_Profit_Growth_Rate = df[f'df_{name_company}']['Чистая рентабельность %'][k+1] - df[f'df_{name_company}']['Чистая рентабельность %'][k] # за этим местом тоже следить т к - это чистая рентабельность, но не прибыль
+    Estimated_Profit_Growth_Rate_list.append(Estimated_Profit_Growth_Rate)
+  Estimated_Profit_Growth_Rate = sum(Estimated_Profit_Growth_Rate_list)/len(Estimated_Profit_Growth_Rate_list) / 100
+
+  g_factor = 1
+
+  growth_duration = 3 # ставить 3-5 лет - гризонт прогнозирования
+
+  perpetual_growth_rate = 5/100 # примерна ключая ставка Банка или уровень инфляции
+
+  n_1 = eps_ratio * (1 + Estimated_Profit_Growth_Rate)
+
+  lst_range = list(range(2,11,1))
+
+  lst_n2_n10 = []
+  
+  for k,i in enumerate(range(len(lst_range))):
+    if k == 0:
+      if lst_range[k] <= growth_duration:
+        n_2 = n_1*(1+Estimated_Profit_Growth_Rate)
+      else:
+        n_2 = n_1*(1+perpetual_growth_rate)
+      lst_n2_n10.append(n_2)
+    else:
+      if lst_range[k] <= growth_duration:
+        n_2 = lst_n2_n10[len(lst_n2_n10)-1]*(1+Estimated_Profit_Growth_Rate)
+      else:
+        n_2 = lst_n2_n10[len(lst_n2_n10)-1]*(1+perpetual_growth_rate)
+      lst_n2_n10.append(n_2)
+
+  terminal_value = lst_n2_n10[len(lst_n2_n10)-1] * (1 + perpetual_growth_rate) / (discount_rate - perpetual_growth_rate)
+
+  lst_n1_n10 = [n_1] + lst_n2_n10
+
+  intrinsic_value = npv(lst_n1_n10, discount_rate) + terminal_value/((1+discount_rate)**len(lst_n1_n10))
+
+  potential_uplift = intrinsic_value/curent_price - 1
+
+  Estimated_Long_Term_Return = intrinsic_value/curent_price*discount_rate
+
+
+  columns = ['ticker', 'Date', 'EPS', 'Estimated Profit Growth Rate', 'Discount Rate', 'G-Factor', 'Intrinsic Value', 'Current Price', 'Potential Uplift', \
+           'Estimated Long Term Return', 'P/E', 'Growth duration, Years','Perpetual Growth Rate','1','2','3','4','5','6','7','8','9','10','Terminal Value']
+
+  dcf_watch_list = pd.DataFrame(columns = columns)
+
+  df2 = {'ticker': ticker, 'Date': date, 'EPS': eps_ratio, 'ticker': ticker, 'Date': date, 'EPS': eps_ratio, 'Estimated Profit Growth Rate':Estimated_Profit_Growth_Rate, 'Discount Rate': discount_rate, \
+       'G-Factor':g_factor, 'Intrinsic Value':intrinsic_value, 'Current Price':curent_price, 'Potential Uplift':potential_uplift, \
+           'Estimated Long Term Return':Estimated_Long_Term_Return, 'P/E': pe_ratio, 'Growth duration, Years': growth_duration,'Perpetual Growth Rate':perpetual_growth_rate,'1':lst_n1_n10[0],\
+       '2': lst_n1_n10[1],'3': lst_n1_n10[2],'4': lst_n1_n10[3],'5':lst_n1_n10[4],'6':lst_n1_n10[5],'7':lst_n1_n10[6],'8':lst_n1_n10[7],'9':lst_n1_n10[8],'10':lst_n1_n10[9],'Terminal Value':terminal_value }
+
+  dcf_watch_list = dcf_watch_list.append(df2, ignore_index = True)
+
+
+  entry = dcf_watch_list[['Current Price', 'Intrinsic Value', 'Potential Uplift']]
+  concat_df = pd.concat([df[f'df_{name_company}'],entry])
+  return concat_df
+
+
+
+
+
+df_df_dcf_watch_list= {}
+for i in companies:
+  print(i)
+  df_df_dcf_watch_list["df_df_dcf_watch_list_{0}".format(i)] = pd.DataFrame(dcf_watch_list(i))
+  display(df_df_dcf_watch_list["df_df_dcf_watch_list_{0}".format(i)])
